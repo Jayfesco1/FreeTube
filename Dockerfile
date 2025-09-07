@@ -10,8 +10,8 @@ COPY package.json yarn.lock ./
 # Install git, which is required for some dependencies
 RUN apk add --no-cache git
 
-# Install dependencies
-RUN yarn install --frozen-lockfile
+# Install dependencies, ignoring scripts to avoid running electron-specific postinstall steps
+RUN yarn install --frozen-lockfile --ignore-scripts
 
 # Copy the rest of the application source code
 COPY . .
