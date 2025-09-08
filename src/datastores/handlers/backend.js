@@ -73,8 +73,16 @@ const createCollection = (name, idField = '_id') => {
   const insert = async (doc) => {
     await getAll();
     if (Array.isArray(doc)) {
+        doc.forEach(d => {
+            if (!d._id) {
+                d._id = crypto.randomUUID();
+            }
+        });
         cache.push(...doc);
     } else {
+        if (!doc._id) {
+            doc._id = crypto.randomUUID();
+        }
         cache.push(doc);
     }
     await save();
