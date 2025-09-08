@@ -1,7 +1,6 @@
-# Stage 1: Build the application
+# Stage 1: Build the frontend application
 FROM node:20-alpine AS builder
 
-# Set the working directory
 WORKDIR /app
 
 # Copy package.json and yarn.lock to leverage Docker cache
@@ -19,18 +18,23 @@ COPY . .
 # Build the web application for production
 RUN yarn pack:web
 
-# Stage 2: Serve the application with Nginx
-FROM nginx:stable-alpine
+# Stage 2: Setup the backend and serve the application
+FROM node:20-alpine
 
-# Copy the built assets from the builder stage
-COPY --from=builder /app/dist/web /usr/share/nginx/html
+WORKDIR /app
 
-# Copy the nginx configuration file
-# This file will be created in the next step.
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy backend package.json and yarn.lock to leverage Docker cache
+COPY backend/package.json backend/yarn.lock ./backend/
+RUN cd backend && yarn install --frozen-lockfile --production
 
-# Expose port 80 for the web server
-EXPOSE 80
+# Copy the rest of the backend code
+COPY backend/ ./backend/
 
-# Start Nginx when the container launches
-CMD ["nginx", "-g", "daemon off;"]
+# Copy the built frontend assets from the builder stage
+COPY --from=builder /app/dist/web ./dist/web
+
+# Expose the port the backend server is running on
+EXPOSE 3000
+
+# Start the backend server
+CMD ["node", "backend/server.js"]

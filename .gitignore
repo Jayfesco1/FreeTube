@@ -28,3 +28,7 @@ debug/
 
 # Lefthook
 lefthook-local.yml
+
+# Log files
+backend.log
+frontend.log
