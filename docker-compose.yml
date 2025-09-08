@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      - API_URL=http://backend:3000
+    depends_on:
+      - backend
+
+  backend:
+    image: node:20-alpine
+    working_dir: /app
+    command: npx json-server --watch db.json --host 0.0.0.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./db.json:/app/db.json

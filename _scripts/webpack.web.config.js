@@ -121,7 +121,8 @@ const config = {
       'process.env.IS_ELECTRON': false,
       'process.env.IS_ELECTRON_MAIN': false,
       'process.env.SUPPORTS_LOCAL_API': false,
-      'process.env.SWIPER_VERSION': `'${swiperVersion}'`
+      'process.env.SWIPER_VERSION': `'${swiperVersion}'`,
+      'process.env.API_URL': JSON.stringify(process.env.API_URL)
     }),
     new webpack.ProvidePlugin({
       process: 'process/browser'
