@@ -154,6 +154,7 @@ const config = {
       vue$: 'vue/dist/vue.runtime.esm.js',
       'portal-vue$': 'portal-vue/dist/portal-vue.esm.js',
 
+      'src/datastores$': path.resolve(__dirname, '../src/datastores/index.web.js'),
       DB_HANDLERS_ELECTRON_RENDERER_OR_WEB$: path.resolve(__dirname, '../src/datastores/handlers/web.js'),
 
       // change to "shaka-player.ui.debug.js" to get debug logs (update jsconfig to get updated types)
