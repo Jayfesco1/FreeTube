@@ -32,3 +32,6 @@ lefthook-local.yml
 # Log files
 backend.log
 frontend.log
+
+# Data directory
+data/
