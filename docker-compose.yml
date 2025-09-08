@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./backend/data.db:/app/backend/data.db
+    networks:
+      - freetube_network
+
+  proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf
+      # The following volumes are placeholders for SSL certificates.
+      # You will need to replace them with your actual certificate paths.
+      # - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - freetube_network
+
+networks:
+  freetube_network:
+    driver: bridge
