@@ -1,6 +1,12 @@
 # Stage 1: Build the application
 FROM node:20-alpine AS builder
 
+# Accept the build argument
+ARG API_URL
+
+# Set it as an environment variable for subsequent commands
+ENV API_URL=${API_URL}
+
 # Set the working directory
 WORKDIR /app
 
