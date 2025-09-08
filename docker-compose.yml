@@ -5,7 +5,7 @@ services:
     build: .
     restart: unless-stopped
     volumes:
-      - ./backend/data.db:/app/backend/data.db
+      - ./data:/app/backend/data
     networks:
       - freetube_network
 
