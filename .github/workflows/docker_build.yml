@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'feat/dockerize-web-app'
+      - 'feat/docker-compose-server-storage'
 
 jobs:
   build-and-push-image:
