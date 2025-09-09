@@ -34,6 +34,23 @@ db.exec(`
   );
 `);
 
+// Migration: Add version column if it doesn't exist
+try {
+    const columns = db.pragma('table_info(collections)');
+    const versionColumn = columns.find(col => col.name === 'version');
+    if (!versionColumn) {
+        console.log('Running migration: adding version column to collections table...');
+        db.exec('ALTER TABLE collections ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
+        console.log('Migration complete.');
+    }
+} catch (error) {
+    // This can happen if the table doesn't exist, which is fine as the CREATE TABLE statement handles it.
+    if (error.message !== 'no such table: collections') {
+        console.error('Error during migration check:', error);
+        throw error;
+    }
+}
+
 // In-memory cache for the latest data
 const dataCache = {};
 
