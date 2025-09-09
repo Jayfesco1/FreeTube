@@ -122,6 +122,7 @@ const config = {
   plugins: [
     processLocalesPlugin,
     new webpack.DefinePlugin({
+      'process.env.PROD': !isDevMode,
       'process.env.IS_ELECTRON': true,
       'process.env.IS_ELECTRON_MAIN': false,
       'process.env.SUPPORTS_LOCAL_API': true,

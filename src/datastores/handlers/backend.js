@@ -1,4 +1,4 @@
-const API_BASE_URL = '/api'
+const API_BASE_URL = process.env.PROD ? '/api' : 'http://localhost:3000/api'
 
 const createCollection = (name, idField = '_id') => {
   let collectionCache = null
@@ -16,7 +16,7 @@ const createCollection = (name, idField = '_id') => {
         collectionCache = { data: [], version: 0 }
       }
     }
-    return JSON.parse(JSON.stringify(collectionCache.data))
+    return collectionCache.data
   }
 
   const save = async () => {
@@ -38,7 +38,6 @@ const createCollection = (name, idField = '_id') => {
         console.warn(`Conflict detected for collection ${name}. Refreshing data.`)
         collectionCache = null
         await getAll()
-        alert('Another user has made changes to the data. Your data has been refreshed. Please make your changes again.')
         throw new Error('Conflict')
       }
 
