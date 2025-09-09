@@ -29,7 +29,8 @@ const collections = [
 db.exec(`
   CREATE TABLE IF NOT EXISTS collections (
     name TEXT PRIMARY KEY,
-    data TEXT
+    data TEXT,
+    version INTEGER NOT NULL DEFAULT 1
   );
 `);
 
@@ -37,12 +38,13 @@ db.exec(`
 const dataCache = {};
 
 function getData(collection) {
-  const stmt = db.prepare('SELECT data FROM collections WHERE name = ?');
+  const stmt = db.prepare('SELECT data, version FROM collections WHERE name = ?');
   const row = stmt.get(collection);
   if (row) {
-    return JSON.parse(row.data);
+    const data = row.data ? JSON.parse(row.data) : [];
+    return { data, version: row.version };
   }
-  return [];
+  return { data: [], version: 0 };
 }
 
 function loadAllData() {
@@ -56,7 +58,7 @@ app.get('/api/:collection', (req, res) => {
   if (!collections.includes(collection)) {
     return res.status(404).send('Collection not found');
   }
-  res.json(dataCache[collection] || []);
+  res.json(dataCache[collection] || { data: [], version: 0 });
 });
 
 app.post('/api/:collection', (req, res) => {
@@ -65,13 +67,40 @@ app.post('/api/:collection', (req, res) => {
         return res.status(404).send('Collection not found');
     }
 
-    const data = req.body;
+    const { data, version: clientVersion } = req.body;
+    if (data === undefined || clientVersion === undefined) {
+        return res.status(400).send('Bad request: missing data or version');
+    }
+
+    const updateTx = db.transaction(() => {
+        const stmt_get = db.prepare('SELECT version FROM collections WHERE name = ?');
+        const row = stmt_get.get(collection);
+        const dbVersion = row ? row.version : 0;
+
+        if (dbVersion !== clientVersion) {
+            return { success: false, version: dbVersion }; // Conflict
+        }
+
+        const newVersion = dbVersion + 1;
+        if (row) {
+            const stmt_update = db.prepare('UPDATE collections SET data = ?, version = ? WHERE name = ?');
+            stmt_update.run(JSON.stringify(data), newVersion, collection);
+        } else {
+            const stmt_insert = db.prepare('INSERT INTO collections (name, data, version) VALUES (?, ?, ?)');
+            stmt_insert.run(collection, JSON.stringify(data), newVersion);
+        }
+        return { success: true, version: newVersion };
+    });
 
     try {
-        const stmt = db.prepare('INSERT OR REPLACE INTO collections (name, data) VALUES (?, ?)');
-        stmt.run(collection, JSON.stringify(data));
-        dataCache[collection] = data;
-        res.status(200).send('Data saved successfully');
+        const result = updateTx();
+        if (result.success) {
+            dataCache[collection] = { data, version: result.version };
+            res.status(200).json({ message: 'Data saved successfully', version: result.version });
+        } else {
+            dataCache[collection] = getData(collection);
+            res.status(409).json({ message: 'Conflict: data has been modified by another user.', version: result.version });
+        }
     } catch (error) {
         console.error(`Error saving data for ${collection}:`, error);
         res.status(500).send('Error saving data');
