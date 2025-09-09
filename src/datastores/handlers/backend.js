@@ -38,7 +38,6 @@ const createCollection = (name, idField = '_id') => {
         console.warn(`Conflict detected for collection ${name}. Refreshing data.`)
         collectionCache = null
         await getAll()
-        alert('Another user has made changes to the data. Your data has been refreshed. Please make your changes again.')
         throw new Error('Conflict')
       }
 
