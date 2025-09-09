@@ -16,4 +16,4 @@ export {
   searchHistory,
   subscriptionCache,
   compactAllDatastores
-};
+}
