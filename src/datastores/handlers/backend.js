@@ -21,45 +21,53 @@ const createCollection = (name, idField = '_id') => {
 
   const save = async () => {
     if (collectionCache === null) return
-    try {
-      let response = await fetch(`${API_BASE_URL}/${name}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: collectionCache.data, version: collectionCache.version }),
-      })
 
-      if (response.status === 409) {
-        console.warn(`Conflict detected for collection ${name}. Refreshing, merging, and retrying.`)
-        const localData = collectionCache.data
+    let attempts = 0
+    const maxAttempts = 3
 
-        collectionCache = null
-        await getAll()
-        const serverData = collectionCache.data
-
-        const mergedData = new Map(serverData.map(item => [item[idField], item]))
-        for (const record of localData) {
-          mergedData.set(record[idField], record)
-        }
-        collectionCache.data = Array.from(mergedData.values())
-
-        response = await fetch(`${API_BASE_URL}/${name}`, {
+    while (attempts < maxAttempts) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/${name}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: collectionCache.data, version: collectionCache.version }),
         })
-      }
 
-      if (response.ok) {
-        const result = await response.json()
-        collectionCache.version = result.version
-        return
-      }
+        if (response.status === 409) {
+          attempts++
+          console.warn(`Conflict detected for collection ${name} (attempt ${attempts} of ${maxAttempts}). Refreshing, merging, and retrying.`)
+          const localData = collectionCache.data
 
-      throw new Error(`Failed to save, status: ${response.status}`)
-    } catch (error) {
-      console.error(`Failed to save ${name}: ${error.message}`)
-      throw error
+          collectionCache = null
+          await getAll()
+          const serverData = collectionCache.data
+
+          const mergedData = new Map(serverData.map(item => [item[idField], item]))
+          for (const record of localData) {
+            mergedData.set(record[idField], record)
+          }
+          collectionCache.data = Array.from(mergedData.values())
+          continue // Retry the loop
+        }
+
+        if (response.ok) {
+          const result = await response.json()
+          collectionCache.version = result.version
+          return // Success
+        }
+
+        // For non-conflict errors, throw immediately
+        throw new Error(`Failed to save, status: ${response.status}`)
+      } catch (error) {
+        console.error(`Failed to save ${name}: ${error.message}`)
+        // If this is the last attempt, re-throw the error. Otherwise, the loop will continue.
+        if (attempts >= maxAttempts - 1) {
+          throw error
+        }
+      }
     }
+    // If the loop completes without success, throw a final error.
+    throw new Error(`Failed to save collection ${name} after ${maxAttempts} attempts.`)
   }
 
   const find = async (query) => {
