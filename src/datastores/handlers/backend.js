@@ -22,11 +22,32 @@ const createCollection = (name, idField = '_id') => {
   const save = async () => {
     if (collectionCache === null) return
     try {
-      const response = await fetch(`${API_BASE_URL}/${name}`, {
+      let response = await fetch(`${API_BASE_URL}/${name}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: collectionCache.data, version: collectionCache.version }),
       })
+
+      if (response.status === 409) {
+        console.warn(`Conflict detected for collection ${name}. Refreshing, merging, and retrying.`)
+        const localData = collectionCache.data
+
+        collectionCache = null
+        await getAll()
+        const serverData = collectionCache.data
+
+        const mergedData = new Map(serverData.map(item => [item[idField], item]))
+        for (const record of localData) {
+          mergedData.set(record[idField], record)
+        }
+        collectionCache.data = Array.from(mergedData.values())
+
+        response = await fetch(`${API_BASE_URL}/${name}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: collectionCache.data, version: collectionCache.version }),
+        })
+      }
 
       if (response.ok) {
         const result = await response.json()
@@ -34,19 +55,10 @@ const createCollection = (name, idField = '_id') => {
         return
       }
 
-      if (response.status === 409) {
-        console.warn(`Conflict detected for collection ${name}. Refreshing data.`)
-        collectionCache = null
-        await getAll()
-        throw new Error('Conflict')
-      }
-
       throw new Error(`Failed to save, status: ${response.status}`)
     } catch (error) {
       console.error(`Failed to save ${name}: ${error.message}`)
-      if (error.message !== 'Conflict') {
-        throw error
-      }
+      throw error
     }
   }
 
