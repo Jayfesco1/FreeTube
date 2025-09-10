@@ -84,6 +84,7 @@ const createCollection = (name, idField = '_id') => {
   }
 
   const upsert = async (query, doc) => {
+    collectionCache = null
     await getAll()
     const data = collectionCache.data
     const index = data.findIndex(d => {
@@ -99,6 +100,7 @@ const createCollection = (name, idField = '_id') => {
   }
 
   const insert = async (doc) => {
+    collectionCache = null
     await getAll()
     const data = collectionCache.data
     if (Array.isArray(doc)) {
@@ -119,6 +121,7 @@ const createCollection = (name, idField = '_id') => {
   }
 
   const remove = async (query, multi = false) => {
+    collectionCache = null
     await getAll()
     let removedCount = 0
     const newData = collectionCache.data.filter(doc => {
@@ -141,6 +144,7 @@ const createCollection = (name, idField = '_id') => {
   }
 
   const update = async (query, update, options = {}) => {
+    collectionCache = null
     await getAll()
     const data = collectionCache.data
     let updated = false
@@ -193,6 +197,7 @@ const createCollection = (name, idField = '_id') => {
   }
 
   const overwrite = async (records) => {
+    collectionCache = null
     await getAll()
     collectionCache.data = records
     await save()
