@@ -52,63 +52,35 @@ const createCollection = (name, idField = '_id') => {
       return
     }
 
-    let attempts = 0
-    const maxAttempts = 3
+    try {
+      console.log(`[${name}] save: attempting to save...`, { version: collectionCache.version, dataSize: collectionCache.data.length })
+      const response = await fetch(`${API_BASE_URL}/${name}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: collectionCache.data, version: collectionCache.version }),
+      })
 
-    while (attempts < maxAttempts) {
-      try {
-        console.log(`[${name}] save: attempting to save...`, { version: collectionCache.version, dataSize: collectionCache.data.length })
-        const response = await fetch(`${API_BASE_URL}/${name}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: collectionCache.data, version: collectionCache.version }),
-        })
-
-        if (response.status === 409) {
-          attempts++
-          console.warn(`[${name}] save: Conflict detected (attempt ${attempts} of ${maxAttempts}). Refreshing, merging, and retrying.`)
-          const localData = collectionCache.data
-
-          collectionCache = null
-          console.log(`[${name}] save (conflict): about to call getAll()`)
-          await getAll()
-          console.log(`[${name}] save (conflict): getAll() finished. collectionCache is:`, collectionCache)
-          const serverData = collectionCache.data
-          console.log(`[${name}] save (conflict): merging local data (${localData.length} records) with server data (${serverData.length} records)`)
-
-          const mergedData = new Map(serverData.map(item => [item[idField], item]))
-          for (const record of localData) {
-            mergedData.set(record[idField], record)
-          }
-          collectionCache.data = Array.from(mergedData.values())
-          console.log(`[${name}] save (conflict): merge complete. New data size: ${collectionCache.data.length} records. Retrying save.`)
-          continue // Retry the loop
+      if (response.ok) {
+        const result = await response.json()
+        console.log(`[${name}] save: success. New version: ${result?.version}`)
+        if (result && 'version' in result) {
+          collectionCache.version = result.version
         }
-
-        if (response.ok) {
-          const result = await response.json()
-          console.log(`[${name}] save: success. New version: ${result?.version}`)
-          if (result && 'version' in result) {
-            collectionCache.version = result.version
-          }
-          return // Success
-        }
-
-        // For non-conflict errors, throw immediately
-        const errorText = await response.text()
-        throw new Error(`Failed to save, status: ${response.status}, response: ${errorText}`)
-      } catch (error) {
-        console.error(`[${name}] save: caught an error during save attempt ${attempts + 1}.`, error)
-        // If this is the last attempt, re-throw the error. Otherwise, the loop will continue.
-        if (attempts >= maxAttempts - 1) {
-          throw error
-        }
+        return // Success
       }
+
+      // If we are here, it's an error.
+      const errorText = await response.text()
+      if (response.status === 409) {
+        console.error(`[${name}] save: Conflict detected. Another client may have updated the data. Aborting save.`, { errorText })
+        throw new Error(`Conflict: Could not save ${name} data. It was modified by another client.`)
+      } else {
+        throw new Error(`Failed to save, status: ${response.status}, response: ${errorText}`)
+      }
+    } catch (error) {
+      console.error(`[${name}] save: caught an error during save attempt.`, error)
+      throw error // Re-throw the error to be caught by the caller
     }
-    // If the loop completes without success, throw a final error.
-    const finalError = new Error(`Failed to save collection ${name} after ${maxAttempts} attempts.`)
-    console.error(`[${name}] save:`, finalError)
-    throw finalError
   }
 
   const find = async (query) => {
