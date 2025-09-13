@@ -2,6 +2,13 @@ const API_BASE_URL = process.env.PROD ? '/api' : 'http://localhost:3000/api'
 
 const createCollection = (name, idField = '_id') => {
   let collectionCache = null
+  let collectionLock = Promise.resolve()
+
+  const withLock = (fn) => {
+    const newLock = collectionLock.then(() => fn())
+    collectionLock = newLock.catch(() => {}) // prevent unhandled rejections on the main chain
+    return newLock
+  }
 
   const getAll = async () => {
     if (collectionCache === null) {
@@ -98,7 +105,7 @@ const createCollection = (name, idField = '_id') => {
     return results[0] || null
   }
 
-  const upsert = async (query, doc) => {
+  const upsert = (query, doc) => withLock(async () => {
     collectionCache = null
     await getAll()
     const data = collectionCache.data
@@ -112,9 +119,9 @@ const createCollection = (name, idField = '_id') => {
     }
     await save()
     return doc
-  }
+  })
 
-  const insert = async (doc) => {
+  const insert = (doc) => withLock(async () => {
     collectionCache = null
     await getAll()
     const data = collectionCache.data
@@ -133,9 +140,9 @@ const createCollection = (name, idField = '_id') => {
     }
     await save()
     return doc
-  }
+  })
 
-  const remove = async (query, multi = false) => {
+  const remove = (query, multi = false) => withLock(async () => {
     collectionCache = null
     await getAll()
     let removedCount = 0
@@ -156,9 +163,9 @@ const createCollection = (name, idField = '_id') => {
       collectionCache.data = newData
       await save()
     }
-  }
+  })
 
-  const update = async (query, update, options = {}) => {
+  const update = (query, update, options = {}) => withLock(async () => {
     collectionCache = null
     await getAll()
     const data = collectionCache.data
@@ -209,14 +216,14 @@ const createCollection = (name, idField = '_id') => {
       }
       await save()
     }
-  }
+  })
 
-  const overwrite = async (records) => {
+  const overwrite = (records) => withLock(async () => {
     collectionCache = null
     await getAll()
     collectionCache.data = records
     await save()
-  }
+  })
 
   return { getAll, save, find, findOne, upsert, insert, remove, update, overwrite, collectionCache }
 }
