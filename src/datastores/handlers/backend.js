@@ -10,7 +10,12 @@ const createCollection = (name, idField = '_id') => {
         if (!response.ok) {
           throw new Error(`Failed to fetch ${name}`)
         }
-        collectionCache = await response.json()
+        const n = await response.json()
+        if (n && 'data' in n) {
+          collectionCache = n
+        } else {
+          collectionCache = { data: [], version: 0 }
+        }
       } catch (error) {
         console.error(error)
         collectionCache = { data: [], version: 0 }
@@ -52,7 +57,9 @@ const createCollection = (name, idField = '_id') => {
 
         if (response.ok) {
           const result = await response.json()
-          collectionCache.version = result.version
+          if (result && 'version' in result) {
+            collectionCache.version = result.version
+          }
           return // Success
         }
 
