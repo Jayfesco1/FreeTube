@@ -5,26 +5,41 @@ const createCollection = (name, idField = '_id') => {
   let collectionLock = Promise.resolve()
 
   const withLock = (fn) => {
-    const newLock = collectionLock.then(() => fn())
-    collectionLock = newLock.catch(() => {}) // prevent unhandled rejections on the main chain
+    console.log(`[${name}] withLock: queuing new operation.`)
+    const newLock = collectionLock.then(() => {
+      console.log(`[${name}] withLock: starting operation.`)
+      return fn()
+    })
+    collectionLock = newLock.catch((error) => {
+      console.error(`[${name}] withLock: operation failed.`, error)
+      // prevent unhandled rejections on the main chain
+    })
     return newLock
   }
 
   const getAll = async () => {
     if (collectionCache === null) {
+      console.log(`[${name}] getAll: collectionCache is null, fetching from server...`)
       try {
         const response = await fetch(`${API_BASE_URL}/${name}`)
+        const responseText = await response.text()
+        console.log(`[${name}] getAll: received response with status ${response.status}`, { responseText })
+
         if (!response.ok) {
-          throw new Error(`Failed to fetch ${name}`)
+          throw new Error(`Failed to fetch ${name}: status ${response.status}`)
         }
-        const n = await response.json()
+
+        const n = JSON.parse(responseText)
+        console.log(`[${name}] getAll: parsed response JSON`, { parsedJson: n })
+
         if (n && 'data' in n) {
           collectionCache = n
         } else {
+          console.warn(`[${name}] getAll: parsed JSON is null or does not have a 'data' property. Initializing with empty cache.`)
           collectionCache = { data: [], version: 0 }
         }
       } catch (error) {
-        console.error(error)
+        console.error(`[${name}] getAll: caught an error during fetch/parse.`, error)
         collectionCache = { data: [], version: 0 }
       }
     }
@@ -32,13 +47,17 @@ const createCollection = (name, idField = '_id') => {
   }
 
   const save = async () => {
-    if (collectionCache === null) return
+    if (collectionCache === null) {
+      console.warn(`[${name}] save: called with null collectionCache. Aborting.`)
+      return
+    }
 
     let attempts = 0
     const maxAttempts = 3
 
     while (attempts < maxAttempts) {
       try {
+        console.log(`[${name}] save: attempting to save...`, { version: collectionCache.version, dataSize: collectionCache.data.length })
         const response = await fetch(`${API_BASE_URL}/${name}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -47,23 +66,26 @@ const createCollection = (name, idField = '_id') => {
 
         if (response.status === 409) {
           attempts++
-          console.warn(`Conflict detected for collection ${name} (attempt ${attempts} of ${maxAttempts}). Refreshing, merging, and retrying.`)
+          console.warn(`[${name}] save: Conflict detected (attempt ${attempts} of ${maxAttempts}). Refreshing, merging, and retrying.`)
           const localData = collectionCache.data
 
           collectionCache = null
           await getAll()
           const serverData = collectionCache.data
+          console.log(`[${name}] save (conflict): merging local data (${localData.length} records) with server data (${serverData.length} records)`)
 
           const mergedData = new Map(serverData.map(item => [item[idField], item]))
           for (const record of localData) {
             mergedData.set(record[idField], record)
           }
           collectionCache.data = Array.from(mergedData.values())
+          console.log(`[${name}] save (conflict): merge complete. New data size: ${collectionCache.data.length} records. Retrying save.`)
           continue // Retry the loop
         }
 
         if (response.ok) {
           const result = await response.json()
+          console.log(`[${name}] save: success. New version: ${result?.version}`)
           if (result && 'version' in result) {
             collectionCache.version = result.version
           }
@@ -71,9 +93,10 @@ const createCollection = (name, idField = '_id') => {
         }
 
         // For non-conflict errors, throw immediately
-        throw new Error(`Failed to save, status: ${response.status}`)
+        const errorText = await response.text()
+        throw new Error(`Failed to save, status: ${response.status}, response: ${errorText}`)
       } catch (error) {
-        console.error(`Failed to save ${name}: ${error.message}`)
+        console.error(`[${name}] save: caught an error during save attempt ${attempts + 1}.`, error)
         // If this is the last attempt, re-throw the error. Otherwise, the loop will continue.
         if (attempts >= maxAttempts - 1) {
           throw error
@@ -81,7 +104,9 @@ const createCollection = (name, idField = '_id') => {
       }
     }
     // If the loop completes without success, throw a final error.
-    throw new Error(`Failed to save collection ${name} after ${maxAttempts} attempts.`)
+    const finalError = new Error(`Failed to save collection ${name} after ${maxAttempts} attempts.`)
+    console.error(`[${name}] save:`, finalError)
+    throw finalError
   }
 
   const find = async (query) => {
