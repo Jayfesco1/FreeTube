@@ -70,7 +70,9 @@ const createCollection = (name, idField = '_id') => {
           const localData = collectionCache.data
 
           collectionCache = null
+          console.log(`[${name}] save (conflict): about to call getAll()`)
           await getAll()
+          console.log(`[${name}] save (conflict): getAll() finished. collectionCache is:`, collectionCache)
           const serverData = collectionCache.data
           console.log(`[${name}] save (conflict): merging local data (${localData.length} records) with server data (${serverData.length} records)`)
 
